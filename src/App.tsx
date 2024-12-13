@@ -15,7 +15,6 @@ async function getAllLinks(node: CanvasNode): Promise<string[]> {
   if (node.controls?.link) {
     links.push(node.controls.link);
   }
-  console.log(node);
 
   // Si el nodo es una instancia de componente, trabajar con sus controles
   if (node.__class === "ComponentInstanceNode") {
@@ -124,6 +123,36 @@ function useSelection() {
   return selection;
 }
 
+async function checkWidths(selection: CanvasNode[]): Promise<string[]> {
+  const errors: string[] = [];
+
+  for (const node of selection) {
+    const nodeAttributes = await node.getNodesWithType("FrameNode");
+    // Asegurarse de que es un FrameNode
+    for (const nodeSelect of nodeAttributes) {
+      const width = nodeSelect.width; // Propiedad relacionada al "FILL" (puede variar según API)
+      const maxWidth = nodeSelect.maxWidth; // Validar restricción horizontal
+      console.log(maxWidth);
+
+      // Validar ancho FILL (asumiendo que "1fr" equivale a "FILL")
+      if (width !== "1fr") {
+        errors.push(
+          `El nodo "${nodeSelect.name}" (${nodeSelect.id}) no tiene ancho configurado como "FILL".`
+        );
+      }
+
+      // Validar maxWidth (asumiendo que un valor numérico es válido)
+      if (!maxWidth || maxWidth === null) {
+        errors.push(
+          `El nodo "${nodeSelect.name}" (${nodeSelect.id}) no tiene un MAX-WIDTH válido.`
+        );
+      }
+    }
+  }
+
+  return errors;
+}
+
 // Componente principal del plugin
 export function App() {
   const selection = useSelection();
@@ -132,6 +161,7 @@ export function App() {
   >([]);
   const [links, setLinks] = useState<string[]>([]);
   const [styleErrors, setStyleErrors] = useState<string[]>([]);
+  const [widthErrors, setWidthErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   const handleValidateLinks = async () => {
@@ -149,6 +179,13 @@ export function App() {
     setLoading(true);
     const errors = await checkStyles(selection);
     setStyleErrors(errors);
+    setLoading(false);
+  };
+
+  const handleCheckWidths = async () => {
+    setLoading(true);
+    const widthErrors = await checkWidths(selection);
+    setWidthErrors(widthErrors); // Reutiliza la variable `styleErrors`
     setLoading(false);
   };
 
@@ -176,6 +213,13 @@ export function App() {
         {loading ? "Checking styles..." : "Check Styles"}
       </button>
 
+      <button
+        className="framer-button-secondary"
+        onClick={handleCheckWidths}
+        disabled={loading}
+      >
+        {loading ? "Checking widths..." : "Check Widths"}
+      </button>
       {loading && <p>Loading... Please wait. 🔄</p>}
 
       {!loading && results.length > 0 && (
@@ -200,9 +244,21 @@ export function App() {
         </div>
       )}
 
-      {!loading && styleErrors.length === 0 && results.length === 0 && (
-        <p>No issues found! 🎉</p>
+      {!loading && widthErrors.length > 0 && (
+        <div>
+          <h4>Width Errors</h4>
+          <ul>
+            {widthErrors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
+        </div>
       )}
+
+      {!loading &&
+        styleErrors.length === 0 &&
+        results.length === 0 &&
+        widthErrors.length === 0 && <p>No issues found! 🎉</p>}
     </main>
   );
 }
