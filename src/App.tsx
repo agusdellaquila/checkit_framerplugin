@@ -128,24 +128,32 @@ async function checkWidths(selection: CanvasNode[]): Promise<string[]> {
 
   for (const node of selection) {
     const nodeAttributes = await node.getNodesWithType("FrameNode");
+
     // Asegurarse de que es un FrameNode
     for (const nodeSelect of nodeAttributes) {
-      const width = nodeSelect.width; // Propiedad relacionada al "FILL" (puede variar según API)
-      const maxWidth = nodeSelect.maxWidth; // Validar restricción horizontal
-      console.log(maxWidth);
+      const width = nodeSelect.width;
+      const maxWidth = nodeSelect.maxWidth;
 
       // Validar ancho FILL (asumiendo que "1fr" equivale a "FILL")
-      if (width !== "1fr") {
-        errors.push(
-          `El nodo "${nodeSelect.name}" (${nodeSelect.id}) no tiene ancho configurado como "FILL".`
-        );
-      }
+      if (nodeSelect.name != "Desktop") {
+        if (width !== "1fr" && width !== "fit-content") {
+          errors.push(
+            `El nodo "${nodeSelect.name}" (${nodeSelect.id}) no tiene ancho configurado como "FILL".`
+          );
+          console.log(nodeSelect);
+          nodeSelect.setAttributes({
+            backgroundColor: "#FFE4E4",
+          });
+        }
 
-      // Validar maxWidth (asumiendo que un valor numérico es válido)
-      if (!maxWidth || maxWidth === null) {
-        errors.push(
-          `El nodo "${nodeSelect.name}" (${nodeSelect.id}) no tiene un MAX-WIDTH válido.`
-        );
+        // Validar maxWidth (asumiendo que un valor numérico es válido)
+        if (!maxWidth || maxWidth === null) {
+          console.log(nodeSelect);
+
+          errors.push(
+            `El nodo "${nodeSelect.name}" (${nodeSelect.id}) no tiene un MAX-WIDTH válido.`
+          );
+        }
       }
     }
   }
@@ -185,7 +193,7 @@ export function App() {
   const handleCheckWidths = async () => {
     setLoading(true);
     const widthErrors = await checkWidths(selection);
-    setWidthErrors(widthErrors); // Reutiliza la variable `styleErrors`
+    setWidthErrors(widthErrors);
     setLoading(false);
   };
 
@@ -220,7 +228,7 @@ export function App() {
       >
         {loading ? "Checking widths..." : "Check Widths"}
       </button>
-      {loading && <p>Loading... Please wait. 🔄</p>}
+      {loading && <p>Checking... Please wait. 🔄</p>}
 
       {!loading && results.length > 0 && (
         <div>
