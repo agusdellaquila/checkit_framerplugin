@@ -79,22 +79,28 @@ async function validateLink(
 async function checkStyles(selection: CanvasNode[]): Promise<string[]> {
   const errors: string[] = [];
   const textStyles = await framer.getTextStyles();
+  console.log(textStyles);
 
   for (const node of selection) {
-    const nodeStyleId = await node.getTextStyleId();
-    const matchingStyle = textStyles.find((style) => style.id === nodeStyleId);
+    console.log(node);
 
-    if (!matchingStyle) {
-      errors.push(`Element ${node.id} does not match any text style.`);
-    } else {
-      const nodeAttributes = await node.getAttributes();
-      const styleAttributes = matchingStyle.getAttributes();
+    const nodeStyleId = await node.getChildren();
 
-      for (const key in styleAttributes) {
-        if (nodeAttributes[key] !== styleAttributes[key]) {
-          errors.push(
-            `Element ${node.id} has a mismatch in ${key}. Expected: ${styleAttributes[key]}, Found: ${nodeAttributes[key]}`
-          );
+    for (const child of nodeStyleId) {
+      const matchingStyle = textStyles.find((style) => style.id === child.id);
+
+      if (!matchingStyle) {
+        errors.push(`Element ${node.id} does not match any text style.`);
+      } else {
+        const nodeAttributes = await node.getAttributes();
+        const styleAttributes = matchingStyle.getAttributes();
+
+        for (const key in styleAttributes) {
+          if (nodeAttributes[key] !== styleAttributes[key]) {
+            errors.push(
+              `Element ${node.id} has a mismatch in ${key}. Expected: ${styleAttributes[key]}, Found: ${nodeAttributes[key]}`
+            );
+          }
         }
       }
     }
@@ -161,6 +167,50 @@ async function checkWidths(selection: CanvasNode[]): Promise<string[]> {
   return errors;
 }
 
+// Función para aplicar vínculos tel: y mailto:
+async function applyTelMailto(node: CanvasNode) {
+  const phoneRegex =
+    /(\+?\d{1,4}[\s-]?)?(\(?\d{2,4}\)?[\s-]?)?\d{3,4}[\s-]?\d{4}/g;
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+  let text = node.name;
+  let controlsText = node.controls ? node.controls.title : "";
+  console.log(controlsText);
+
+  // Verifica si el nodo actual es de tipo "Text"
+  if (
+    text.toUpperCase() === "EMAIL" ||
+    text.toUpperCase() === "PHONE" ||
+    controlsText.toUpperCase() === "EMAIL" ||
+    controlsText.toUpperCase() === "PHONE"
+  ) {
+    let textContent = node.link || node.controls.link;
+
+    // Detecta y aplica enlaces "tel:" para teléfonos
+    textContent = textContent.replace(phoneRegex, (match) => {
+      console.log(`Se aplicaron vínculos en el nodo: "${node.name}"`);
+      return `<a href="tel:${match.replace(/\s+/g, "")}">${match}</a>`;
+    });
+
+    // Detecta y aplica enlaces "mailto:" para correos electrónicos
+    textContent = textContent.replace(emailRegex, (match) => {
+      console.log(`Se aplicaron vínculos en el nodo: "${node.name}"`);
+      return `<a href="mailto:${match}">${match}</a>`;
+    });
+
+    // Actualiza el texto del nodo si se hicieron cambios
+    // if (textContent !== node.text) {
+    //   node.text = textContent;
+    // }
+  }
+
+  // Recursión: procesa todos los hijos del nodo
+  const children = await node.getChildren();
+  for (const child of children) {
+    await applyTelMailto(child); // Llamada recursiva para los hijos
+  }
+}
+
 // Componente principal del plugin
 export function App() {
   const selection = useSelection();
@@ -170,6 +220,7 @@ export function App() {
   const [links, setLinks] = useState<string[]>([]);
   const [styleErrors, setStyleErrors] = useState<string[]>([]);
   const [widthErrors, setWidthErrors] = useState<string[]>([]);
+  const [telMailtoErrors, setTelMailtoErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   const handleValidateLinks = async () => {
@@ -195,6 +246,15 @@ export function App() {
     const widthErrors = await checkWidths(selection);
     setWidthErrors(widthErrors);
     setLoading(false);
+  };
+
+  const handleCheckTelMailto = async () => {
+    setLoading(true);
+    for (const node of selection) {
+      await applyTelMailto(node);
+    }
+    setLoading(false);
+    console.log("Se han aplicado los vínculos tel: y mailto: en la selección.");
   };
 
   return (
@@ -228,6 +288,14 @@ export function App() {
       >
         {loading ? "Checking widths..." : "Check Widths"}
       </button>
+
+      <button
+        className="framer-button-secondary"
+        onClick={handleCheckTelMailto}
+        disabled={loading}
+      >
+        {loading ? "Checking Tel & Mailto..." : "Check Tel & Mailto"}
+      </button>
       {loading && <p>Checking... Please wait. 🔄</p>}
 
       {!loading && results.length > 0 && (
@@ -257,6 +325,17 @@ export function App() {
           <h4>Width Errors</h4>
           <ul>
             {widthErrors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {!loading && telMailtoErrors.length > 0 && (
+        <div>
+          <h4>Tel & Mailto Errors</h4>
+          <ul>
+            {telMailtoErrors.map((error, index) => (
               <li key={index}>{error}</li>
             ))}
           </ul>
